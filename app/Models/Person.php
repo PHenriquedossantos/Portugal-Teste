@@ -9,7 +9,7 @@ class Person extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'email'];
+    protected $fillable = ['name', 'email', 'avatar'];
 
     public function contacts()
     {
