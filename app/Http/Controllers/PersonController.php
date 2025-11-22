@@ -3,14 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Models\Person;
+use App\Services\PersonService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Http\Requests\StorePersonRequest;
+use App\Http\Requests\UpdatePersonRequest;
+
 
 class PersonController extends Controller
 {
+    protected PersonService $service;
+
+    public function __construct(PersonService $service)
+    {
+        $this->service = $service;
+    }
+
     public function index()
     {
-        $people = Person::orderBy('name')->paginate(10);
+        $people = $this->service->paginate(10);
         return view('people.index', compact('people'));
     }
 
@@ -19,23 +30,18 @@ class PersonController extends Controller
         return view('people.form', ['person' => new Person()]);
     }
 
-    public function store(Request $request)
+    public function store(StorePersonRequest $request)
     {
-        $data = $request->validate([
-            'name'  => ['required','string','min:6'],
-            'email' => ['required','email',
-                Rule::unique('people')->whereNull('deleted_at')
-            ],
-        ]);
+        $data   = $request->validated();
+        $person = $this->service->create($data);
 
-        $person = Person::create($data);
-
-        return redirect()->route('people.show', $person)->with('success','Pessoa criada.');
+        return redirect()->route('people.show', $person)->with('success', 'Pessoa criada.');
     }
+
 
     public function show(Person $person)
     {
-        $person->load('contacts');
+        $person = $this->service->loadWithContacts($person);
         return view('people.show', compact('person'));
     }
 
@@ -44,23 +50,17 @@ class PersonController extends Controller
         return view('people.form', compact('person'));
     }
 
-    public function update(Request $request, Person $person)
+    public function update(UpdatePersonRequest $request, Person $person)
     {
-        $data = $request->validate([
-            'name'  => ['required','string','min:6'],
-            'email' => ['required','email',
-                Rule::unique('people')->ignore($person->id)->whereNull('deleted_at')
-            ],
-        ]);
-
-        $person->update($data);
+        $data   = $request->validated();
+        $person = $this->service->update($person, $data);
 
         return redirect()->route('people.show', $person)->with('success','Pessoa atualizada.');
     }
 
     public function destroy(Person $person)
     {
-        $person->delete();
+        $this->service->delete($person);
         return redirect()->route('people.index')->with('success','Pessoa removida.');
     }
 }
