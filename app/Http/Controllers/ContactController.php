@@ -4,76 +4,76 @@ namespace App\Http\Controllers;
 
 use App\Models\Person;
 use App\Models\Contact;
+use App\Services\ContactService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Http\Requests\StoreContactRequest;
+use App\Http\Requests\UpdateContactRequest;
 
 class ContactController extends Controller
 {
-    public function create(Person $person)
+  protected ContactService $service;
+
+  public function __construct(ContactService $service)
+  {
+    $this->service = $service;
+  }
+
+  public function create(Person $person)
+  {
+    $data = $this->service->createContact($person);
+
+    return view('contacts.form', $data);
+  }
+
+  public function store(StoreContactRequest $request, Person $person)
+  {
+    $data   = $request->validated();
+    $result = $this->service->storeContact($data, $person);
+
+    if ($result['exists']) 
     {
-        return view('contacts.form', [
-            'person'  => $person,
-            'contact' => new Contact(),
-        ]);
+      return back()->withErrors([
+        'number' => 'Esse contato já existe no sistema.'
+      ])->withInput();
     }
 
-    public function store(Request $request, Person $person)
+    return redirect()->route('people.show', $person)->with('success','Contato adicionado.');
+  }
+
+  public function show(Person $person, Contact $contact)
+  {
+    $data = $this->service->showOrFail($person, $contact);
+
+    return view('contacts.show', $data);
+  }
+
+  public function edit(Person $person, Contact $contact)
+  {
+    $data = $this->service->editOrFail($person, $contact);
+
+    return view('contacts.form', $data);
+  }
+
+  public function update(UpdateContactRequest $request, Person $person, Contact $contact)
+  {
+    $data = $request->validated();
+    $result = $this->service->updateContact($data, $person, $contact);
+
+    if ($result['exists'])
     {
-        $data = $request->validate([
-            'country_code' => ['required','string','max:10'],
-            'number'       => ['required','digits:9'],
-        ]);
-
-        $exists = Contact::whereNull('deleted_at')->where('country_code', $data['country_code'])->where('number', $data['number'])->exists();
-
-        if ($exists) {
-            return back()->withErrors(['number' => 'Esse contato já existe no sistema.'])->withInput();
-        }
-
-        $person->contacts()->create($data);
-
-        return redirect()->route('people.show', $person)->with('success','Contato adicionado.');
+      return back()->withErrors([
+        'number' => 'Esse contato já existe no sistema.'
+      ])->withInput();
     }
 
-    public function show(Person $person, Contact $contact)
-    {
-        abort_unless($contact->person_id === $person->id, 404);
+    return redirect()->route('people.contacts.show', [$person, $contact])->with('success','Contato atualizado.');
+  }
 
-        return view('contacts.show', compact('person','contact'));
-    }
+  public function destroy(Person $person, Contact $contact)
+  {
+    $this->service->destroyContact($person, $contact);
 
-    public function edit(Person $person, Contact $contact)
-    {
-        abort_unless($contact->person_id === $person->id, 404);
-
-        return view('contacts.form', compact('person','contact'));
-    }
-
-    public function update(Request $request, Person $person, Contact $contact)
-    {
-        abort_unless($contact->person_id === $person->id, 404);
-
-        $data = $request->validate([
-            'country_code' => ['required','string','max:10'],
-            'number'       => ['required','digits:9'],
-        ]);
-
-        $exists = Contact::whereNull('deleted_at')->where('country_code', $data['country_code'])->where('number', $data['number'])->where('id', '!=', $contact->id)->exists();
-
-        if ($exists) {
-            return back()->withErrors(['number' => 'Esse contato já existe no sistema.'])->withInput();
-        }
-
-        $contact->update($data);
-
-        return redirect()->route('people.contacts.show', [$person, $contact])->with('success','Contato atualizado.');
-    }
-
-    public function destroy(Person $person, Contact $contact)
-    {
-        abort_unless($contact->person_id === $person->id, 404);
-
-        $contact->delete();
-        return redirect()->route('people.show', $person)->with('success','Contato removido.');
-    }
+    return redirect()->route('people.show', $person)->with('success','Contato removido.');
+  }
 }
